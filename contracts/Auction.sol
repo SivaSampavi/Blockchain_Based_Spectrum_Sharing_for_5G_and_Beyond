@@ -90,10 +90,10 @@ contract Auction {
     //This event is emitted when a bid is received. 
     //It includes the address of the SU who placed the bid, the deposit amount.
     //Also the event emitted time, and the minimum required usage time.
-    event ReceivedHiddenBid(address SU, uint deposit, uint currentTime, uint minuUsageTime);
+    event ReceivedBid(address SU, uint deposit, uint currentTime, uint minuUsageTime);
 
     //This event is emitted when a open bid is received. others are same as previous
-    event ReceivedOpenBid(address SU, uint bid, uint currentTime,  uint minuUsageTime);
+    event ReceivedBidReveal(address SU, uint bid, uint currentTime,  uint minuUsageTime);
 
     //This event is emitted when a round of bidding is closed. 
     //It includes information about which round of bidding is being closed, the current state of the auction
