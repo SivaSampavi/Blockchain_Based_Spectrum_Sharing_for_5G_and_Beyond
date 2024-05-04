@@ -9,7 +9,7 @@ contract Auction {
         ReadyForDeletion//3rd state
     }
 
-    //The following modifiers are the preconditions that should satisfy before a finction execute
+    //The following modifiers are the preconditions that should satisfy before a function execute
 
     //It checks if the current state of the auction matches the expected state provided as an argument to the function
     //It ensures that functions can only be executed when the auction is in the specified state.
