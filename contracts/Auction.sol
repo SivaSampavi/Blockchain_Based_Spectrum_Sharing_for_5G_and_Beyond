@@ -46,17 +46,19 @@ contract Auction {
     //Information related to a single bid
     struct Bid {
         bool existsBid;// states if a bid exists.
-        bytes32 Bid;//Will contain a hashed bid
+        bytes32 Bidding;//Will contain a hashed bid + minimum required usage time
         uint BidReveal;// Contains the bid, revealed bid
+        uint UsageTimeReveal ;Contains the  revealed usage time
         bool isBidRevealValid;//defines if the bidreveal is valid or not
         uint deposit;//Contains the deposit amount of a bidder
-        uint minUsageTime;//Contains the minimum required usage time
+        
     }
 
     //information about the winner of the auction
     struct Winner {
         address accountAddress;//stores the address of the winner
         uint bid;//Stores the value of the winning bid
+        uint minUsageTime;//Stores the value of the winning bid time
     }
 
     //represents a token related to the auction
@@ -88,12 +90,12 @@ contract Auction {
     event CreatedNewAuction(AuctionInfo auctionInfo, uint currentTime);
 
     //This event is emitted when a bid is received. 
-    //It includes the address of the SU who placed the bid, the deposit amount.
-    //Also the event emitted time, and the minimum required usage time.
-    event ReceivedBid(address SU, uint deposit, uint currentTime, uint minuUsageTime);
+    //It includes the address of the SU who placed the bid, the deposit amount and the event emitted time
+    event ReceivedBid(address SU, uint deposit, uint currentTime);
 
-    //This event is emitted when a open bid is received. others are same as previous
-    event ReceivedBidReveal(address SU, uint bid, uint currentTime,  uint minuUsageTime);
+    //This event is emitted when a open bid is received. 
+    //It includes the address of the SU who placed the bid, the bidding amount , bidding time and the event emitted time
+    event ReceivedBidReveal(address SU, uint bid, , uint minUsageTime, uint currentTime );
 
     //This event is emitted when a round of bidding is closed. 
     //It includes information about which round of bidding is being closed, the current state of the auction
@@ -149,91 +151,84 @@ contract Auction {
         emit CreatedNewAuction(auctionInfo, block.timestamp);
     }
 
-    // /// Place a bid by hashing it with keccak256().
-    // /// The deposit is only refunded if the bid is above the minimum bid value, 
-    // /// and if the open bid equals the hashed bid during the open round
-    // function bidInHiddenRound(bytes32 bid) public payable 
-    //     inState(State.ReadyForBids) 
-    //     isBeforeDeadline(auctionInfo.BidsDeadline) 
-    // {
-    //     require(msg.value >= auctionInfo.depositValue, "Deposit value is too low");
+    
+    //function to place bid in the first round.
+    // Place a bid  by hashing it and minTime with keccak256().
+     function bidInBiddingRound(bytes32 bid) public payable 
+        inState(State.ReadyForBids)                                                 //modifier to check whether the state is correct
+        isBeforeDeadline(auctionInfo.BidsDeadline)                                  //modifier to check whether the bid is placing in the correct time.
+        {
+        require(msg.value >= auctionInfo.depositValue, "Deposit value is too low"); //check whether the deposit value of SU is greater than or eqaul the minimum deposit value.
 
-    //     bids[msg.sender] = Bid({
-    //         existsBid: true,
-    //         hiddenBid: bid,
-    //         BidReveal: 0,
-    //         isBidRevealValid: false,
-    //         deposit: msg.value * 1 wei
-    //     });
+         bids[msg.sender] = Bid({                                                   //a mapping to store the bid information along with SUs address
+            existsBid: true,
+            Bidding: bid,
+            BidReveal: 0,
+            isBidRevealValid: false,
+            deposit: msg.value * 1 wei
+        });
 
-    //     BidsAddresses.push(msg.sender);
-    //     emit ReceivedHiddenBid(msg.sender, msg.value, block.timestamp);
-    // }
+        BidsAddresses.push(msg.sender);                                             //store addresses of bidder SUs in an array
+        emit ReceivedBid(msg.sender, msg.value, block.timestamp);
+    }
 
-    // function closeHiddenRound() public inState(State.ReadyForBids) isAfterDeadline(auctionInfo.BidsDeadline) {
-    //     if (BidsAddresses.length == 0) {
-    //         auctionInfo.currentState = State.ReadyForDeletion;
-    //         emit ClosedAuctionWithNoBids("Hidden round", block.timestamp);
-    //     } else {
-    //         auctionInfo.currentState = State.ReadyForBidsReveal;
-    //         emit ClosedRound("Hidden round", auctionInfo.currentState, block.timestamp);
-    //     }
-    // }
+    //function to close the first round if the time for this round is up.
 
-    // function bidInOpenRound(uint BidReveal, string memory salt) public inState(State.ReadyForBidsReveal) isBeforeDeadline(auctionInfo.BidsRevealDeadline) {
-    //     require(bids[msg.sender].existsBid, "This account has not bidden in the hidden round");
-    //     require(BidReveal >= auctionInfo.minBidValue, "Bid value is too low");
+     function closeBiddingRound() public 
+     inState(State.ReadyForBids)                                                    //checking the state
+     isAfterDeadline(auctionInfo.BidsDeadline) {                                    //checking whether the time limit for placing bids are expired or not.
+        if (BidsAddresses.length == 0) {                                            //If no bids were placed , close the auction.
+            auctionInfo.currentState = State.ReadyForDeletion;
+             emit ClosedAuctionWithNoBids("Bidding round", block.timestamp);
+        } else {                                                                    //else go for round 2 , BidReveal round
+             auctionInfo.currentState = State.ReadyForBidsReveal;
+            emit ClosedRound("Bidding round", auctionInfo.currentState, block.timestamp);
+        }
+     }
 
-    //     bytes32 hashedBid = keccak256(abi.encodePacked(BidReveal, salt));
-    //     require(bids[msg.sender].hiddenBid == hashedBid, "Open bid and bid do not match");
 
-    //     bids[msg.sender].isBidRevealValid = true;
-    //     bids[msg.sender].BidReveal = BidReveal;
-    //     emit ReceivedOpenBid(msg.sender, BidReveal, block.timestamp);
-    // }
+    //function to reveal the bidding amount and time for bidders.
+     function bidInBidRevealRound(uint BidReveal,uint UsageTimeReveal, uint  string memory salt) public 
+     inState(State.ReadyForBidsReveal) 
+     isBeforeDeadline(auctionInfo.BidsRevealDeadline) 
+     {
+         require(bids[msg.sender].existsBid, "This account has not bidden in the hidden round"); //check whether the SU is a valid biddder
+         require(BidReveal >= auctionInfo.minBidValue, "Bid value is too low");                  //check whethere the validity of the bid value
 
-    // function closeOpenRound() public inState(State.ReadyForBidsReveal) isAfterDeadline(auctionInfo.BidsRevealDeadline) {
-    //     uint validOpenBids = 0;
-    //     for (uint i = 0; i < BidsAddresses.length; i++) {
-    //         if (bids[BidsAddresses[i]].isBidRevealValid) {
-    //             validOpenBids += 1;
-    //         }
-    //     }
+         bytes32 hashedBid = keccak256(abi.encodePacked(BidReveal, useTimeReveal , salt));       //Hashing bid + minUsage Time + salt value using  keccak256.
+         require(bids[msg.sender].Bidding == hashedBid, "Open bid and bid do not match");          //checking whetehre the revealed bid information are match with the information provided in the bidding round.
+
+         bids[msg.sender].isBidRevealValid = true;
+         bids[msg.sender].BidReveal = BidReveal;                                                 //set the parameters of the bid.
+         bids[msg.sender].UsageTimeReveal = UsageTimeReveal;
+
+         emit ReceivedBidReveal(msg.sender, BidReveal,UsageTimeReveal, block.timestamp);
+     }
+
+
+
+     //function to close the bid revealing round.
+     function closeAuction() public 
+     isAfterDeadline(auctionInfo.BidsRevealDeadline) 
+     inState(State.ReadyForBidsReveal)
+      {
+         uint validBidReveals = 0;
+         for (uint i = 0; i < BidsAddresses.length; i++) {
+             if (bids[BidsAddresses[i]].isBidRevealValid) {                                     ////checking how many valid bid reveals are there.
+                 validBidReveals += 1;
+             }
+         }
         
-    //     if (validOpenBids == 0) {
-    //         auctionInfo.currentState = State.ReadyForDeletion;
-    //         emit ClosedAuctionWithNoBids("Open round, no valid bids", block.timestamp);
-    //     } else {
-    //         auctionInfo.currentState = State.Closed;
-    //         emit ClosedRound("Open round", auctionInfo.currentState, block.timestamp);
-    //     }
-    // }
-
-    // function closeAuction() public isAfterDeadline(auctionInfo.BidsRevealDeadline) inState(State.ReadyForBidsReveal) {
-    //     uint validOpenBids = 0;
-    //     for (uint i = 0; i < BidsAddresses.length; i++) {
-    //         if (bids[BidsAddresses[i]].isBidRevealValid) {
-    //             validOpenBids += 1;
-    //         }
-    //     }
-        
-    //     if (validOpenBids == 0) {
-    //         auctionInfo.currentState = State.ReadyForDeletion;
-    //         emit ClosedAuctionWithNoBids("Open round, no valid bids", block.timestamp);
-    //     } else {
-    //         auctionInfo.currentState = State.Closed;
-    //         emit ClosedRound("Open round", auctionInfo.currentState, block.timestamp);
+         if (validBidReveals == 0) {
+             auctionInfo.currentState = State.ReadyForDeletion;
+            emit ClosedAuctionWithNoBids("Bid revealing round, no valid bids", block.timestamp);       ////if no any valid bid reveals close the auction.
+        } else {
+             auctionInfo.currentState = State.Closed;
+             emit ClosedRound("Bid revealing round", auctionInfo.currentState, block.timestamp);  
             
-    //         findWinner();
-    //     }
-    // }
-
-
-
-
-
-    // ............................................................................................................................
-
+             findWinner();                                                                          //otherwise find the winner
+           }
+     }
 
 
 
