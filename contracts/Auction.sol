@@ -228,126 +228,134 @@ contract Auction {
     //     }
     // }
 
-    // function findWinner() internal inState(State.Closed) {
-    //     address winnerAddress;
-    //     uint highestBid;
 
-    //     for(uint i = 0; i < BidsAddresses.length; i++) {
-    //         address SU = BidsAddresses[i];
-    //         uint bid = bids[SU].BidReveal;
 
-    //         if (bid > highestBid) {
-    //             winnerAddress = SU;
-    //             highestBid = bid;
-    //         }
-    //     }
 
-    //     winner = Winner({
-    //         accountAddress: winnerAddress,
-    //         bid: highestBid
-    //     });
-    //     emit FoundHighestBid(winner, block.timestamp);
 
-    //     token[winnerAddress] = Token({
-    //         winner: winnerAddress,
-    //         auctionContract: address(this),
-    //         bandwidth: auctionInfo.bandwidth,
-    //         validUntil: block.timestamp + 12 weeks,
-    //         isSpent: false
-    //     });
-    // }
+    // ............................................................................................................................
 
-    // function transferBackDeposits() internal inState(State.Closed) {
-    //     require(winner.accountAddress != address(0), "Must find a winner before sending back deposits");
 
-    //     for (uint i = 0; i < BidsAddresses.length; i++) {
-    //         address payable SUAddress = payable(BidsAddresses[i]);
-    //         Bid memory bid = bids[SUAddress];
 
-    //         // Do not send back deposit to invalid SUs
-    //         if (!bid.isBidRevealValid) continue; 
 
-    //         bool isWinner = SUAddress == winner.accountAddress;
-    //         if (isWinner && bid.BidReveal >= bid.deposit) continue;
-    //         uint deposit = isWinner ?  bid.deposit - bid.BidReveal : bid.deposit;
+    function findWinner() internal inState(State.Closed) {          // Function to find the winner of the auction
+         address winnerAddress;                                     // Declaring variables to store the winner's address and the highest bid
+         uint highestBid;
 
-    //         emit TransferEvent(
-    //             "Transfer back deposit to SU", 
-    //             SUAddress, 
-    //             deposit, 
-    //             block.timestamp
-    //         );
+         for(uint i = 0; i < BidsAddresses.length; i++) {           // Loop through all the bids
+             address SU = BidsAddresses[i];                         // Get the address of the bidder
+             if (!bids[SU].isOpenBidValid) continue;                // Check if the bid is still open for this address; if not, skip to the next iteration
+             uint bid = bids[SU].BidReveal*bids[SU].minUsageTime;   // Calculate the bid amount by multiplying the revealed bid with the minimum usage time
 
-    //         SUAddress.transfer(deposit);
-    //     }
-    // }
+             if (bid > highestBid) {                                // Check if the current bid is higher than the previously recorded highest bid
+                 winnerAddress = SU;                                // If yes, update the winner's address and the highest bid amount
+                 highestBid = bid;
+             }
+         }
 
-    // function transferHighestBidToPU() internal inState(State.Closed) {
-    //     uint highestBid = winner.bid;
-    //     address payable PU = auctionInfo.PU;
-    //     string memory eventMsg = "Transfer highest bid to PU";
+         winner = Winner({                                          // Store the winner and their bid amount
+             accountAddress: winnerAddress,
+             bid: highestBid
+         });
+         emit FoundHighestBid(winner, block.timestamp);             // Emit an event to log the highest bid found
 
-    //     if (highestBid > auctionInfo.depositValue) {
-    //         highestBid = auctionInfo.depositValue;
-    //         eventMsg = "The highest bid was higher than the deposit value. Transferring the deposit to PU";
-    //     }
+         token[winnerAddress] = Token({                             // Create a token for the winner with auction details
+             winner: winnerAddress,
+             auctionContract: address(this),
+             bandwidth: auctionInfo.bandwidth,
+             validUntil: block.timestamp + 12 weeks,
+             isSpent: false
+         });
+     }
 
-    //     emit TransferEvent(
-    //         eventMsg,
-    //         PU,
-    //         highestBid,
-    //         block.timestamp
-    //     );
+    function transferBackDeposits() internal inState(State.Closed) {                                        // Function to transfer back deposits to bidders
+         require(winner.accountAddress != address(0), "Must find a winner before sending back deposits");   // Ensure that a winner has been found before proceeding
 
-    //     PU.transfer(highestBid);
+         for (uint i = 0; i < BidsAddresses.length; i++) {                                                  // Loop through all bidders
+             address payable SUAddress = payable(BidsAddresses[i]);                                         // Get the address of the bidder and make it payable
+             Bid memory bid = bids[SUAddress];                                                              // Get the bid details for the bidder
 
-    //     // Transfer deposits of invalid SUs to PU
-    //     uint contractBalance = address(this).balance;
-    //     if (contractBalance > 0) {
-    //         emit TransferEvent(
-    //             "Transfer contract balance to PU", 
-    //             PU, 
-    //             contractBalance,
-    //             block.timestamp
-    //         );
+             if (!bid.isBidRevealValid) continue;                                                           // Do not send back deposit to invalid SUs
 
-    //         PU.transfer(contractBalance);
-    //     }
+             bool isWinner = SUAddress == winner.accountAddress;                                            // Check if the bidder is the winner and if their bid reveal is greater than or equal to their deposit
+             if (isWinner && bid.BidReveal >= bid.deposit) continue;
+             uint deposit = isWinner ?  bid.deposit - bid.BidReveal*bid.minUsageTime : bid.deposit;         // Calculate the deposit to be transferred back
 
-    //     emit AuctionEnded(winner, address(this).balance, block.timestamp);
-    // }
+             emit TransferEvent(                                                                            // Emit an event indicating the transfer of deposit back to the bidder
+                 "Transfer back deposit to SU", 
+                 SUAddress, 
+                 deposit, 
+                 block.timestamp
+             );
 
-    // function retrieveToken() public inState(State.Closed) isAfterDeadline(auctionInfo.BidsRevealDeadline) returns(Token memory) {
-    //     require(msg.sender == winner.accountAddress, "You are not the winner of the auction!");
+             SUAddress.transfer(deposit);                                                                   // Transfer the deposit back to the bidder
+         }
+     }
+
+     function transferHighestBidToPU() internal inState(State.Closed) {                                         // Function to transfer the highest bid amount to the PU
+         uint highestBid = winner.bid;                                                                          // Get the highest bid amount from the winner
+         address payable PU = auctionInfo.PU;                                                                   // Get the address of the PU
+         string memory eventMsg = "Transfer highest bid to PU";                                                 // Initialize the event message
+
+         if (highestBid > auctionInfo.depositValue) {                                                           // Check if the highest bid exceeds the deposit value
+             highestBid = auctionInfo.depositValue;                                                             // If it does, set the highest bid to be equal to the deposit value
+             eventMsg = "The highest bid was higher than the deposit value. Transferring the deposit to PU";    // Update the event message accordingly
+         }
+
+         emit TransferEvent(                                                    // Emit an event indicating the transfer of funds to the PU
+             eventMsg,
+             PU,
+             highestBid,
+             block.timestamp
+         );
+
+         PU.transfer(highestBid);                                               // Transfer the highest bid amount to the PU
+
+         uint contractBalance = address(this).balance;                          // Transfer deposits of invalid SUs to PU
+         if (contractBalance > 0) {
+             emit TransferEvent(                                                // If there are remaining funds in the contract, transfer them to the PU
+                 "Transfer contract balance to PU", 
+                 PU, 
+                 contractBalance,
+                 block.timestamp
+             );
+
+             PU.transfer(contractBalance);                                      // Transfer the remaining funds to the PU
+         }
+
+         emit AuctionEnded(winner, address(this).balance, block.timestamp);     // Emit an event indicating the end of the auction
+     }
+
+     function retrieveToken() public inState(State.Closed) isAfterDeadline(auctionInfo.BidsRevealDeadline) returns(Token memory) {      // Function to retrieve the token after the auction has closed and the deadline for bids reveal has passed
+         require(msg.sender == winner.accountAddress, "You are not the winner of the auction!");                                        // Ensure that only the winner of the auction can retrieve the token
         
-    //     auctionInfo.currentState = State.ReadyForDeletion;
-    //     emit RetrievedToken(msg.sender, block.timestamp);
+         auctionInfo.currentState = State.ReadyForDeletion;                                                                             // Update the state of the auction to indicate readiness for deletion
+         emit RetrievedToken(msg.sender, block.timestamp);                                                                              // Emit an event indicating the retrieval of the token by the winner
 
-    //     return token[msg.sender];
-    // }
+         return token[msg.sender];                                                                                                      // Return the token associated with the winner's address
+     }
 
-    // function getAuctionInfo() public view returns(State, address, uint, uint, uint, uint, uint) {
-    //     return (
-    //         auctionInfo.currentState,
-    //         auctionInfo.PU,
-    //         auctionInfo.bandwidth,
-    //         auctionInfo.minBidValue,
-    //         auctionInfo.depositValue,
-    //         auctionInfo.BidsDeadline,
-    //         auctionInfo.BidsRevealDeadline
-    //     );
-    // }
+     function getAuctionInfo() public view returns(State, address, uint, uint, uint, uint, uint) {          // Function to retrieve information about the auction
+         return (                                                                                           // Return the current state of the auction and its parameters
+             auctionInfo.currentState,
+             auctionInfo.PU,
+             auctionInfo.bandwidth,
+             auctionInfo.minBidValue,
+             auctionInfo.depositValue,
+             auctionInfo.BidsDeadline,
+             auctionInfo.BidsRevealDeadline
+         );
+     }
 
-    // function getCurrentState() public view returns(State) {
-    //     return auctionInfo.currentState;
-    // }
+     function getCurrentState() public view returns(State) {                                // Function to get the current state of the auction
+         return auctionInfo.currentState;
+     }
 
-    // function getTokenValidUntil() public view returns(uint) {
-    //     return token[winner.accountAddress].validUntil;
-    // }
+     function getTokenValidUntil() public view returns(uint) {                              // Function to get the validity period of the token for the auction winner
+         return token[winner.accountAddress].validUntil;
+     }
 
-    // function deleteAuction() external {
-    //     require(msg.sender == controller, "You are not allowed to delete this auction!");
-    //     selfdestruct(auctionInfo.PU);
-    // }
+     function deleteAuction() external {                                                    // Function to delete the auction contract
+         require(msg.sender == controller, "You are not allowed to delete this auction!");  // Ensure that only the controller can delete the auction
+         selfdestruct(auctionInfo.PU);
+     }
 }

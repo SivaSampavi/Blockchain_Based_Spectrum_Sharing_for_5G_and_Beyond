@@ -49,27 +49,39 @@ contract AuctionController {
     ///     (2) Token has expired
     ///     (3) Auction has closed with no bids
     /// Auction can only be deleted by admin or by the auction PU
-    // function deleteAuction(address auctionAddress) public {
-    //     Auction auction = Auction(auctionAddress);
+    
+     
+     // Function to delete an auction
+     function deleteAuction(address auctionAddress) public {
+         // Get the Auction contract instance using the provided address
+         Auction auction = Auction(auctionAddress);
 
-    //     require(msg.sender == PUAddresses[auctionAddress] || msg.sender == admin, "Can only be deleted by admin or the auction PU");
+         // Ensure that only the admin or the PU associated with the auction can delete it
+         require(msg.sender == PUAddresses[auctionAddress] || msg.sender == admin, "Can only be deleted by admin or the auction PU");
         
-    //     bool tokenExpired = currentTime() > auction.getTokenValidUntil() && auction.getTokenValidUntil() != 0;
-    //     if (!tokenExpired) {
-    //         require(auction.getCurrentState() == Auction.State.ReadyForDeletion, "Cannot delete auction before the token has expired or been retrieved");
-    //     }
+         // Check if the token associated with the auction has expired or has been retrieved
+         bool tokenExpired = block.timestamp > auction.getTokenValidUntil() && auction.getTokenValidUntil() != 0;
+         // If the token has not expired or been retrieved, ensure that the auction is in a state ready for deletion
+         if (!tokenExpired) {
+             require(auction.getCurrentState() == Auction.State.ReadyForDeletion, "Cannot delete auction before the token has expired or been retrieved");
+         }
         
-    //     auction.deleteAuction();
-    //     delete PUAddresses[auctionAddress];
+         // Call the deleteAuction function of the Auction contract to delete it
+         auction.deleteAuction();
+         // Remove the auction address from the list of PU addresses
+         delete PUAddresses[auctionAddress];
 
-    //     emit DeletedAuction(auctionAddress);
-    // }
+         // Emit an event indicating the deletion of the auction
+         emit DeletedAuction(auctionAddress);
+     }
 
-    // function currentTime() internal view virtual returns(uint) {
-    //     return block.timestamp;
-    // }
+     // Function to get the current timestamp
+     function currentTime() internal view virtual returns(uint) {
+         return block.timestamp;
+     }
 
-    // function getAdmin() internal view returns(address) {
-    //     return admin;
-    // }
+     // Function to get the address of the admin
+     function getAdmin() internal view returns(address) {
+         return admin;
+     }
 }
