@@ -42,4 +42,8 @@ contract TestAuction is Auction {
     function testTransferHighestBidToPU() public {
         transferHighestBidToPU();
     }
+
+    function clearBidsAddresses() public {
+        delete BidsAddresses;
+    }
 }
