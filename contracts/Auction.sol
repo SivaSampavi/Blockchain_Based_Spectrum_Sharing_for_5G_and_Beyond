@@ -192,11 +192,11 @@ contract Auction {
      inState(State.ReadyForBidsReveal) 
      isBeforeDeadline(auctionInfo.BidsRevealDeadline) 
      {
-         require(bids[msg.sender].existsBid, "This account has not bidden in the hidden round"); //check whether the SU is a valid biddder
-         require(BidReveal >= auctionInfo.minBidValue, "Bid value is too low");                  //check whethere the validity of the bid value
+         require(bids[msg.sender].existsBid, "This account has not bid in the bidding round"); //check whether the SU is a valid biddder
+         require(BidReveal >= auctionInfo.minBidValue, "Bid value is too low");                  //check whether the validity of the bid value
 
          bytes32 hashedBid = keccak256(abi.encodePacked(BidReveal, minUsageTime , salt));        //Hashing bid + minUsage Time + salt value using  keccak256.
-         require(bids[msg.sender].Bidding == hashedBid, "Open bid and bid do not match");        //checking whetehre the revealed bid information are match with the information provided in the bidding round.
+         require(bids[msg.sender].Bidding == hashedBid, " Actual bid and revealing bid do not match");        //checking whether the revealed bid information are match with the information provided in the bidding round.
 
          bids[msg.sender].isBidRevealValid = true;
          bids[msg.sender].BidReveal = BidReveal;                                                 //set the parameters of the bid.
