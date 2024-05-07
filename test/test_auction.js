@@ -192,7 +192,7 @@ contract("Auction", accounts => {
         )
    });
 
-   it("auction should close if no hidden bids were recevied", async () => {
+   it("auction should close if no bids were recevied", async () => {
         //increaing the time beyond the bidding round deadline.
         await time.increase(ONE_DAY + 1);
         //set the current state of the test contract as STATE_READY_FOR_BIDS
@@ -211,7 +211,7 @@ contract("Auction", accounts => {
 
     });
 
-    it("auction should not be open for the bid revealing round if no hidden bids were recevied", async () => {
+    it("auction should not be open for the bid revealing round if no bids were recevied", async () => {
         //increaing the time beyond the bidding round deadline.
         await time.increase(ONE_DAY + 1);
         ////set the current state of the test contract as STATE_READY_FOR_BIDS
