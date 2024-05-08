@@ -310,6 +310,17 @@ contract("Auction", accounts => {
         );
     });
 
+    it("cannot reveal bids in bid revealing round if deposit value does not match with revealed bid, time values.", async () => {
+    await bidInBiddingRound(MIN_BID_VALUE, MIN_USAGE_TIME,accounts[1], DEPOSIT_VALUE);
+    await time.increase(ONE_DAY + 1);
+    await testContract.closeBiddingRound();
+    ////checking whether the function reverts deposit value is lower than revealed bid x revealed time.
+    await truffleAssert.reverts(
+        testContract.bidInBidRevealRound(MIN_BID_VALUE*10,MIN_USAGE_TIME, "some_salt", { from: accounts[1] }),
+        "Revealed bid values does not match with the deposit"
+        );
+    });
+
     it("cannot reveal bids in open round if reveal bid does not match the actual bid", async () => {
         await bidInBiddingRound(MIN_BID_VALUE,MIN_USAGE_TIME, accounts[1], DEPOSIT_VALUE);
         await time.increase(ONE_DAY + 1);
