@@ -18,11 +18,13 @@ contract("Auction", accounts => {
 
     const ONE_DAY = 86400;
     const BANDWIDTH = 200;
-    const MIN_BID_VALUE = 50000;
-    const MIN_USAGE_TIME = 1800;
-    const DEPOSIT_VALUE = 100000;
-    //defining an array for test bid values.
-    const TEST_BIDS = [MIN_BID_VALUE , MIN_BID_VALUE + 1, MIN_BID_VALUE + 3, MIN_BID_VALUE + 4, MIN_BID_VALUE+2];
+    const MIN_BID_VALUE = 5000;
+    const MIN_USAGE_TIME = 180;
+    const DEPOSIT_VALUE = 1000000;
+    //defining two arrays for test bid values and test minimum usage values .
+    const TEST_BIDS = [MIN_BID_VALUE +1  , MIN_BID_VALUE + 1, MIN_BID_VALUE + 3, MIN_BID_VALUE + 4, MIN_BID_VALUE+2];
+    const TEST_MIN_USAGE_TIME = [MIN_USAGE_TIME , MIN_USAGE_TIME + 5, MIN_USAGE_TIME + 10, MIN_USAGE_TIME - 60, MIN_USAGE_TIME - 10];
+
     //deploying the TestAuction contract before each test.
     beforeEach(async () => {
         //deploying an instance of the contract with specified parameters
