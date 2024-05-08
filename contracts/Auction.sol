@@ -194,7 +194,7 @@ contract Auction {
      {
          require(bids[msg.sender].existsBid, "This account has not bid in the bidding round"); //check whether the SU is a valid biddder
          require(BidReveal >= auctionInfo.minBidValue, "Bid value is too low");                  //check whether the validity of the bid value
-
+         require((BidReveal*minUsageTime) <= bids[msg.sender].deposit, "Revealed bid values does not match with the deposit");
          bytes32 hashedBid = keccak256(abi.encodePacked(BidReveal, minUsageTime , salt));        //Hashing bid + minUsage Time + salt value using  keccak256.
          require(bids[msg.sender].Bidding == hashedBid, " Actual bid and revealing bid do not match");        //checking whether the revealed bid information are match with the information provided in the bidding round.
 
