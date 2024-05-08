@@ -331,81 +331,70 @@ contract("Auction", accounts => {
     });
 
 
-  //........................................................................................................................
+ //........................................................................................................................
 
     it("the auction should close if no valid bid reveals were received", async () => {
-        // Simulate bidding in the bidding round of the auction
-        await bidInBiddingRound(MIN_BID_VALUE + 1, MIN_USAGE_TIME, accounts[1], DEPOSIT_VALUE);
+
+        await bidInBiddingRound(MIN_BID_VALUE + 1, MIN_USAGE_TIME, accounts[1], DEPOSIT_VALUE);                     // Simulate bidding in the bidding round of the auction
+        await time.increase(ONE_DAY + 1);                                                                           // Increase time by one day plus one additional second
+        await testContract.closeBiddingRound();                                                                     // Close the bidding round of the auction
     
-        // Increase time by one day plus one additional second
-        await time.increase(ONE_DAY + 1);
-    
-        // Close the bidding round of the auction
-        await testContract.closeBiddingRound();
-    
-        // Verify that attempting to bid in the bid reveal round reverts with a specific message
-        await truffleAssert.reverts(
+        await truffleAssert.reverts(                                                                                // Verify that attempting to bid in the bid reveal round reverts with a specific message
             testContract.bidInBidRevealRound(MIN_BID_VALUE, MIN_USAGE_TIME, "some_salt", { from: accounts[1]}),
             "Actual bid and revealing bid do not match"
         );
     
-        // Increase time by one day plus one additional second
-        await time.increase(ONE_DAY + 1);
+        await time.increase(ONE_DAY + 1);                                                                           // Increase time by one day plus one additional second
+        const tx = await testContract.closeAuction();                                                               // Close the auction
     
-        // Close the auction
-        const tx = await testContract.closeAuction();
-    
-        // Assert that the "ClosedAuctionWithNoBids" event is emitted with the correct parameters
-        truffleAssert.eventEmitted(tx, "ClosedAuctionWithNoBids", (ev) => {
-            return ev.whichRound == "Bid revealing round, no valid bids"; // Updated event parameter to match the emitted event
+        truffleAssert.eventEmitted(tx, "ClosedAuctionWithNoBids", (ev) => {                                         // Assert that the "ClosedAuctionWithNoBids" event is emitted with the correct parameters
+            return ev.whichRound == "Bid revealing round, no valid bids";                                           // Updated event parameter to match the emitted event
         });
     
-        // Get the current state of the contract and assert it's ready for deletion
-        const state = Number(await testContract.getCurrentState());
+        const state = Number(await testContract.getCurrentState());                                                  // Get the current state of the contract and assert it's ready for deletion
         expect(state).to.equal(STATE_READY_FOR_DELETION);
     
-        // Assert again that the "ClosedAuctionWithNoBids" event is emitted with the correct parameters
-        truffleAssert.eventEmitted(tx, "ClosedAuctionWithNoBids", (ev) => ev.whichRound == "Bid revealing round, no valid bids");
+        truffleAssert.eventEmitted(tx, "ClosedAuctionWithNoBids", (ev) => ev.whichRound == "Bid revealing round, no valid bids");   // Assert again that the "ClosedAuctionWithNoBids" event is emitted with the correct parameters
     });
 
-    it("closed bid reveal round", async () => {                                                           // Test case: Close open round
-        await mockBidding(TEST_BIDS ,TEST_MIN_USAGE_TIME);                                                               // Mock bidding with MOCK_BIDS
+    it("closed bid reveal round", async () => {                                                           // Test case: Close bid reveal round
+        await mockBidding(TEST_BIDS ,TEST_MIN_USAGE_TIME);                                                // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME
         await time.increase(ONE_DAY + 1);
         // await contract.setCurrentState(READY_FOR_OPEN_BIDS_STATE);
         const tx = await testContract.closeAuction();
        
-        let a = await getAuctionInfo();                                                              // Get auction information and assert the current state is CLOSED_STATE
+        let a = await getAuctionInfo();                                                                   // Get auction information and assert the current state is CLOSED_STATE
         expect(a.currentState).to.equal(STATE_CLOSED);
        truffleAssert.eventEmitted(tx, "ClosedRound", (ev) =>
-         ev.whichRound == "Bid revealing round");       // Assert that the "ClosedRound" event is emitted with the correct parameters
+         ev.whichRound == "Bid revealing round");                                                         // Assert that the "Bid revealing round" event is emitted with the correct parameters
     });
 
-    it("cannot close bid reveal if in the wrong state", async () => {                               // Test case: Cannot close open round if in the wrong state
+    it("cannot close bid reveal if in the wrong state", async () => {                                     // Test case: Cannot close bid reveal if in the wrong state
         await time.increase((ONE_DAY * 2) + 1);
-        await truffleAssert.reverts(                                                                // Verify that attempting to close the open round reverts with a specific message
+        await truffleAssert.reverts(                                                                      // Verify that attempting to close the bid reveal round reverts with a specific message
             testContract.closeAuction(),
             "Invalid state"
         )
     });
     
-    it("cannot close bid reveal round before deadline", async () => {                         // Test case: Cannot close open round before deadline
+    it("cannot close bid reveal round before deadline", async () => {                         // Test case: Cannot close bid reveal round before deadline
         await testContract.setCurrentState(STATE_READY_FOR_BIDS_REVEAL);                      // Set the current state of the contract to READY_FOR_OPEN_BIDS_STATE
-        await truffleAssert.reverts(                                                    // Verify that attempting to close the open round reverts with a specific message
+        await truffleAssert.reverts(                                                          // Verify that attempting to close the open round reverts with a specific message
             testContract.closeAuction(),
             "Cannot perform this action before the deadline"
         )
     });
 
-    it("found auction winner", async () => {                                       // Test case: Found auction winner
-        const actualHighestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                      // Mock bidding with MOCK_BIDS and get the actual highest bid
+    it("found auction winner", async () => {                                                // Test case: Found auction winner
+        const actualHighestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);          // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the actual highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
-        const tx = await testContract.testFindWinner();                                 // Execute the function to find the winner
+        const tx = await testContract.testFindWinner();                                     // Execute the function to find the winner
         
-        const winner = await testContract.winner.call();                                // Get the winner from the contract
+        const winner = await testContract.winner.call();                                    // Get the winner from the contract
     
-        truffleAssert.eventEmitted(tx, "FoundHighestBid");                          // Assert that the "FoundHighestBid" event is emitted
-        expect(winner.accountAddress).to.equal(actualHighestBid.bidder);            // Assert that the winner's account address and bid match the actual highest bid
+        truffleAssert.eventEmitted(tx, "FoundHighestBid");                                  // Assert that the "FoundHighestBid" event is emitted
+        expect(winner.accountAddress).to.equal(actualHighestBid.bidder);                    // Assert that the winner's account address and bid match the actual highest bid
         expect(Number(winner.bid)).to.equal(actualHighestBid.bid);
     });
 
@@ -421,12 +410,12 @@ contract("Auction", accounts => {
 
 
     it("sent deposits back to bidders (all bids valid)", async () => {                              // Test case: Sent deposits back to bidders (all bids valid)
-        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                                            // Mock bidding with MOCK_BIDS and get the highest bid
+        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                        // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
         await testContract.testFindWinner();
     
-        const winner = await testContract.winner.call();                                                // Get the winner from the contract
+        const winner = await testContract.winner.call();                                            // Get the winner from the contract
         expect(winner.accountAddress).to.equal(highestBid.bidder);                                  // Assert that the winner's account address and bid match the highest bid
         expect(Number(winner.bid)).to.equal(highestBid.bid);
         
@@ -435,7 +424,7 @@ contract("Auction", accounts => {
             balancesBefore.push(await getBalance(accounts[i + 1]));
         }
     
-        const tx = await testContract.testTransferBackDeposits();                                       // Execute the function to transfer back deposits
+        const tx = await testContract.testTransferBackDeposits();                                   // Execute the function to transfer back deposits
         truffleAssert.eventEmitted(tx, "TransferEvent");                                            // Assert that the "TransferEvent" event is emitted
     
         for (let i = 0; i < TEST_BIDS.length; i++) {                                                // Loop through each bidder
@@ -443,118 +432,114 @@ contract("Auction", accounts => {
             const currentBalance = await getBalance(accounts[i + 1]);
             
             const refundedValue = isWinner ? DEPOSIT_VALUE - (TEST_BIDS[i]*TEST_MIN_USAGE_TIME[i]) : DEPOSIT_VALUE;          // Calculate the refunded value based on whether the bidder is the winner or not
-            expect(Number(currentBalance - balancesBefore[i])).to.equal(refundedValue);             // Assert that the difference in balances is equal to the refunded value
+            expect(Number(currentBalance - balancesBefore[i])).to.equal(refundedValue);                                      // Assert that the difference in balances is equal to the refunded value
         }
     });
 
-    it("did not send deposit back to invalid bidder", async () => {                 // Test case: Did not send deposit back to invalid bidder
-        const invalidBidder = accounts[1];                                          // Define the invalid bidder
-        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME ,true);                                         // Mock bidding with MOCK_BIDS, including an invalid first bid
+    it("did not send deposit back to invalid bidder", async () => {                     // Test case: Did not send deposit back to invalid bidder
+        const invalidBidder = accounts[1];                                              // Define the invalid bidder
+        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME ,true);                         // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
         await testContract.setCurrentState(STATE_CLOSED);                               // Set the current state of the contract to CLOSED_STATE
         await testContract.testFindWinner();                                            // Execute the function to find the winner
     
         let balanceBefore = await getBalance(invalidBidder);      
                           // Get the balance of the invalid bidder before refund
         let tx = await testContract.testTransferBackDeposits();                         // Execute the function to transfer back deposits
-        truffleAssert.eventEmitted(tx, "TransferEvent");                            // Assert that the "TransferEvent" event is emitted
-        let balanceAfter = await getBalance(invalidBidder);                         // Get the balance of the invalid bidder after refund
+        truffleAssert.eventEmitted(tx, "TransferEvent");                                // Assert that the "TransferEvent" event is emitted
+        let balanceAfter = await getBalance(invalidBidder);                             // Get the balance of the invalid bidder after refund
         
-        expect(Number(balanceAfter - balanceBefore)).to.equal(0);                   // Assert that the balance of the invalid bidder remains unchanged
+        expect(Number(balanceAfter - balanceBefore)).to.equal(0);                       // Assert that the balance of the invalid bidder remains unchanged
     });
 
-    it("sent highest bid to PU, no extra deposits", async () => {               // Test case: Sent highest bid to PU, no extra deposits
-        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                        // Mock bidding with MOCK_BIDS and get the highest bid
+    it("sent highest bid to PU, no extra deposits", async () => {                       // Test case: Sent highest bid to PU, no extra deposits
+        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);            // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
         await testContract.testFindWinner();
         await testContract.testTransferBackDeposits();
         
-        const balanceBefore = await getBalance(PU_ACCOUNT);                  // Get the balance of the PU before transferring highest bid
-        const tx = await testContract.testTransferHighestBidToPU();             // Execute the function to transfer highest bid to the PU
-        truffleAssert.eventEmitted(tx, "TransferEvent");                        // Assert that the "TransferEvent" event is emitted
-        const balanceAfter = await getBalance(PU_ACCOUNT);                   // Get the balance of the PU after transferring highest bid
+        const balanceBefore = await getBalance(PU_ACCOUNT);                             // Get the balance of the PU before transferring highest bid
+        const tx = await testContract.testTransferHighestBidToPU();                     // Execute the function to transfer highest bid to the PU
+        truffleAssert.eventEmitted(tx, "TransferEvent");                                // Assert that the "TransferEvent" event is emitted
+        const balanceAfter = await getBalance(PU_ACCOUNT);                              // Get the balance of the PU after transferring highest bid
     
-        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid);  // Assert that the difference in balances is equal to the highest bid
+        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid);          // Assert that the difference in balances is equal to the highest bid
     });
     
-    it("sent highest bid to PU, one extra deposit", async () => {                                   // Test case: Sent highest bid to PU, one extra deposit
-        const highestBid = await mockBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                                      // Mock bidding with MOCK_BIDS, including an invalid first bid
+    it("sent highest bid to PU, one extra deposit", async () => {                                       // Test case: Sent highest bid to PU, one extra deposit
+        const highestBid = await mockBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                      // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
         await testContract.testFindWinner();
         await testContract.testTransferBackDeposits();
         
-        const balanceBefore = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                     // Get the balance of the PU before transferring highest bid to PU
+        const balanceBefore = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                            // Get the balance of the PU before transferring highest bid to PU
         const tx = await testContract.testTransferHighestBidToPU({ gasPrice: 7});                       // Execute the function to transfer highest bid to PU
         truffleAssert.eventEmitted(tx, "TransferEvent");
-        const balanceAfter = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                      // Get the balance of the PU after transferring highest bid to PU
+        const balanceAfter = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                             // Get the balance of the PU after transferring highest bid to PU
     
-        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid + DEPOSIT_VALUE);      // Assert that the difference in balances is equal to the highest bid plus one extra deposit
+        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid + DEPOSIT_VALUE);          // Assert that the difference in balances is equal to the highest bid plus one extra deposit
     });
 
-    it("winner retrieved token", async() => {                                               // Test case: Winner retrieved token
+    it("winner retrieved token", async() => {                                                   // Test case: Winner retrieved token
         await mockBidding(TEST_BIDS, TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
         const winner = await testContract.winner.call();
 
         const tx = await testContract.retrieveToken({ from: winner.accountAddress });           // Execute the function for the winner to retrieve the token
-        truffleAssert.eventEmitted(tx, "RetrievedToken");                                   // Assert that the "RetrievedToken" event is emitted
+        truffleAssert.eventEmitted(tx, "RetrievedToken");                                       // Assert that the "RetrievedToken" event is emitted
     });
     
-    it("non-winner is not allowed to retrieve token", async() => {                          // Test case: Non-winner is not allowed to retrieve token
+    it("non-winner is not allowed to retrieve token", async() => {                              // Test case: Non-winner is not allowed to retrieve token
         await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
     
-        await truffleAssert.reverts(                                                        // Verify that a non-winner attempting to retrieve the token reverts with a specific message
+        await truffleAssert.reverts(                                                            // Verify that a non-winner attempting to retrieve the token reverts with a specific message
             testContract.retrieveToken({ from: accounts[1] }),
             "You are not the winner of the auction!"
         );
     });
     
-    /*it("token should not be callable", async() => {                                         // Test case: Token should not be callable
+    it("token should not be callable", async() => {
         await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAuction();
         
-        try {                                                                               // Attempt to call the token function
+        try {
             await testContract.token.call();
-            expect.fail();                                                                  // If no error is thrown, fail the test
+            expect.fail();
         } catch(error) {
-            expect(error.message).to.equal("Cannot read property 'call' of undefined");     // Assert that the error message matches the expected error
+            expect(error.message).to.equal("Cannot read properties of undefined (reading 'call')");
         }
-    });*/
+    });
     
-    
-
-
-
    
     // CONVENIENCE FUNCTIONS
 
-    mockBidding = async (bids, minUsageTime, includeInvalidBid = false) => {                      // Function to simulate the bidding process
-        for (let i = 0; i < bids.length; i++) {                                     // Loop through each bid
-            await bidInBiddingRound(bids[i], minUsageTime[i], accounts[i + 1], DEPOSIT_VALUE);       // Place a bid in the bidding round for each bidder
+    mockBidding = async (bids, minUsageTime, includeInvalidBid = false) => {                            // Function to simulate the bidding process
+        for (let i = 0; i < bids.length; i++) {                                                         // Loop through each bid
+            await bidInBiddingRound(bids[i], minUsageTime[i], accounts[i + 1], DEPOSIT_VALUE);          // Place a bid in the bidding round for each bidder
         }
-        let hiddenBidsNum = Number(await testContract.getBidsLength.call());      // Check the number of hidden bids stored in the contract matches the number of bids
+        let hiddenBidsNum = Number(await testContract.getBidsLength.call());                             // Check the number of hidden bids stored in the contract matches the number of bids
        expect(hiddenBidsNum).to.equal(bids.length);
 
         await time.increase(ONE_DAY + 1);
         await testContract.closeBiddingRound();
 
-        for (let i = 0; i < bids.length; i++) {                                     // Loop through each bid again for the bid reveal phase
-            if (includeInvalidBid && i == 0) {                                      // If includeInvalidBid is true and it's the first bid, attempt an invalid bid
+        for (let i = 0; i < bids.length; i++) {                                                          // Loop through each bid again for the bid reveal phase
+            if (includeInvalidBid && i == 0) {                                                           // If includeInvalidBid is true and it's the first bid, attempt an invalid bid
                 await truffleAssert.reverts(
                     bidInBidRevealRound(bids[i] - 1, minUsageTime[i], "some_salt", accounts[i + 1]),
                     " Actual bid and revealing bid do not match"
               );
                continue;
             }
-           await bidInBidRevealRound(bids[i], minUsageTime[i], "some_salt", accounts[i + 1]);       // Otherwise, place a bid in the bid reveal round for each bidder
+           await bidInBidRevealRound(bids[i], minUsageTime[i], "some_salt", accounts[i + 1]);            // Otherwise, place a bid in the bid reveal round for each bidder
         }
 
-       let highestBid = Number.MIN_SAFE_INTEGER; // Initialize with the smallest possible number
+       let highestBid = Number.MIN_SAFE_INTEGER;                                                         // Initialize with the smallest possible number
          let highestBidder = accounts[0];
          for (let i = 0; i < bids.length; i++) {
           let product = bids[i] * minUsageTime[i];
@@ -563,7 +548,7 @@ contract("Auction", accounts => {
              highestBid = product;
              highestBidder = accounts[i+1];
          }
-         }                                            // Determine the highest bid and its bidder
+         }                                                                                              // Determine the highest bid and its bidder
          
          return { "bid": highestBid, "bidder": highestBidder};
 
@@ -578,5 +563,6 @@ contract("Auction", accounts => {
 
 
 });
+
 
 
