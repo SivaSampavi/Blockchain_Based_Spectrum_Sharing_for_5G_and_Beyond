@@ -1,5 +1,5 @@
-let AuctionController = artifacts.require("./AuctionController.sol");
+let AdvertisementController = artifacts.require("./AdvertisementController.sol");
 
 module.exports = async (deployer) => {
-    await deployer.deploy(AuctionController);
+    await deployer.deploy(AdvertisementController);
 }
