@@ -80,7 +80,46 @@ contract("Advertisement", accounts => {
     truffleAssert.eventEmitted(tx, "ReceivedBidReveal", (ev) => {
         return ev.SU == bidderAddress && ev.bid == bidValue && ev.UsageTime == bidTime;
     });
-    };   
+    };  
+     // Function to simulate the bidding process
+    TestBidding = async (bids, minUsageTime, includeInvalidBid = false) => {                           
+        for (let i = 0; i < bids.length; i++) {                                                         // Loop through each bid
+            await bidInBiddingRound(bids[i], minUsageTime[i], accounts[i + 1], DEPOSIT_VALUE);          // Place a bid in the bidding round for each bidder
+        }
+        let BidsNum = Number(await testContract.getBidsLength.call());                             // Check the number of hidden bids stored in the contract matches the number of bids
+       expect(BidsNum).to.equal(bids.length);
+
+        await time.increase(ONE_DAY + 1);
+        await testContract.closeBiddingRound();
+
+        for (let i = 0; i < bids.length; i++) {                                                          // Loop through each bid again for the bid reveal phase
+            if (includeInvalidBid && i == 0) {                                                           // If includeInvalidBid is true and it's the first bid, attempt an invalid bid
+                await truffleAssert.reverts(
+                    bidInBidRevealRound(bids[i] - 1, minUsageTime[i], "some_salt", accounts[i + 1]),
+                    " Actual bid and revealing bid do not match"
+              );
+               continue;
+            }
+           await bidInBidRevealRound(bids[i], minUsageTime[i], "some_salt", accounts[i + 1]);            // Otherwise, place a bid in the bid reveal round for each bidder
+        }
+
+       let highestBid = Number.MIN_SAFE_INTEGER;                                                         // Initialize with the smallest possible number
+         let highestBidder = accounts[0];
+         for (let i = 0; i < bids.length; i++) {
+          let product = bids[i] * minUsageTime[i];
+         if (product > highestBid) {
+ 
+             highestBid = product;
+             highestBidder = accounts[i+1];
+         }
+         }                                                                                              // Determine the highest bid and its bidder
+         
+         return { "bid": highestBid, "bidder": highestBidder};   
+    };
+
+    getBalance = async (account) => {
+        return BigInt(await web3.eth.getBalance(account));
+    };
 
     it("contract is initialized with correct parameters and deadlines", async () => {
 
@@ -367,11 +406,12 @@ contract("Advertisement", accounts => {
         const state = Number(await testContract.getCurrentState());                                                  // Get the current state of the contract and assert it's ready for deletion
         expect(state).to.equal(STATE_READY_FOR_DELETION);
     
-        truffleAssert.eventEmitted(tx, "ClosedAdvertisementWithNoBids", (ev) => ev.whichRound == "Bid revealing round, no valid bids");   // Assert again that the "ClosedAdvertisementWithNoBids" event is emitted with the correct parameters
+        truffleAssert.eventEmitted(tx, "ClosedAdvertisementWithNoBids", (ev) =>
+            ev.whichRound == "Bid revealing round, no valid bids");   // Assert again that the "ClosedAdvertisementWithNoBids" event is emitted with the correct parameters
     });
 
     it("closed bid reveal round", async () => {                                                           // Test case: Close bid reveal round
-        await mockBidding(TEST_BIDS ,TEST_MIN_USAGE_TIME);                                                // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME
+        await TestBidding(TEST_BIDS ,TEST_MIN_USAGE_TIME);                                                // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME
         await time.increase(ONE_DAY + 1);
         // await contract.setCurrentState(READY_FOR_OPEN_BIDS_STATE);
         const tx = await testContract.closeAdvertisement();
@@ -399,7 +439,7 @@ contract("Advertisement", accounts => {
     });
 
     it("found advertisement winner", async () => {                                                // Test case: Found advertisement winner
-        const actualHighestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);          // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the actual highest bid
+        const actualHighestBid = await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);          // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the actual highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         const tx = await testContract.testFindWinner();                                     // Execute the function to find the winner
@@ -412,7 +452,7 @@ contract("Advertisement", accounts => {
     });
 
     it("cannot find advertisement winner if in wrong state", async () => {
-        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
+        await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         
         await truffleAssert.reverts(
@@ -423,7 +463,7 @@ contract("Advertisement", accounts => {
 
 
     it("sent deposits back to bidders (all bids valid)", async () => {                              // Test case: Sent deposits back to bidders (all bids valid)
-        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                        // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
+        const highestBid = await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);                        // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         await testContract.testFindWinner();
@@ -451,7 +491,7 @@ contract("Advertisement", accounts => {
 
     it("did not send deposit back to invalid bidder", async () => {                     // Test case: Did not send deposit back to invalid bidder
         const invalidBidder = accounts[1];                                              // Define the invalid bidder
-        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME ,true);                         // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
+        await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME ,true);                         // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
         await testContract.setCurrentState(STATE_CLOSED);                               // Set the current state of the contract to CLOSED_STATE
         await testContract.testFindWinner();                                            // Execute the function to find the winner
     
@@ -465,7 +505,7 @@ contract("Advertisement", accounts => {
     });
 
     it("sent highest bid to PU, no extra deposits", async () => {                       // Test case: Sent highest bid to PU, no extra deposits
-        const highestBid = await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);            // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
+        const highestBid = await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);            // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         await testContract.testFindWinner();
@@ -480,7 +520,7 @@ contract("Advertisement", accounts => {
     });
     
     it("sent highest bid to PU, one extra deposit", async () => {                                       // Test case: Sent highest bid to PU, one extra deposit
-        const highestBid = await mockBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                      // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
+        const highestBid = await TestBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                      // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         await testContract.testFindWinner();
@@ -495,7 +535,7 @@ contract("Advertisement", accounts => {
     });
 
     it("winner retrieved token", async() => {                                                   // Test case: Winner retrieved token
-        await mockBidding(TEST_BIDS, TEST_MIN_USAGE_TIME);
+        await TestBidding(TEST_BIDS, TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         const winner = await testContract.winner.call();
@@ -505,7 +545,7 @@ contract("Advertisement", accounts => {
     });
     
     it("non-winner is not allowed to retrieve token", async() => {                              // Test case: Non-winner is not allowed to retrieve token
-        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
+        await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
     
@@ -516,7 +556,7 @@ contract("Advertisement", accounts => {
     });
     
     it("token should not be callable", async() => {
-        await mockBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
+        await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);
         await time.increase(ONE_DAY + 1);
         await testContract.closeAdvertisement();
         
@@ -527,54 +567,8 @@ contract("Advertisement", accounts => {
             expect(error.message).to.equal("Cannot read properties of undefined (reading 'call')");
         }
     });
+
     
-   
-    // CONVENIENCE FUNCTIONS
-
-    mockBidding = async (bids, minUsageTime, includeInvalidBid = false) => {                            // Function to simulate the bidding process
-        for (let i = 0; i < bids.length; i++) {                                                         // Loop through each bid
-            await bidInBiddingRound(bids[i], minUsageTime[i], accounts[i + 1], DEPOSIT_VALUE);          // Place a bid in the bidding round for each bidder
-        }
-        let hiddenBidsNum = Number(await testContract.getBidsLength.call());                             // Check the number of hidden bids stored in the contract matches the number of bids
-       expect(hiddenBidsNum).to.equal(bids.length);
-
-        await time.increase(ONE_DAY + 1);
-        await testContract.closeBiddingRound();
-
-        for (let i = 0; i < bids.length; i++) {                                                          // Loop through each bid again for the bid reveal phase
-            if (includeInvalidBid && i == 0) {                                                           // If includeInvalidBid is true and it's the first bid, attempt an invalid bid
-                await truffleAssert.reverts(
-                    bidInBidRevealRound(bids[i] - 1, minUsageTime[i], "some_salt", accounts[i + 1]),
-                    " Actual bid and revealing bid do not match"
-              );
-               continue;
-            }
-           await bidInBidRevealRound(bids[i], minUsageTime[i], "some_salt", accounts[i + 1]);            // Otherwise, place a bid in the bid reveal round for each bidder
-        }
-
-       let highestBid = Number.MIN_SAFE_INTEGER;                                                         // Initialize with the smallest possible number
-         let highestBidder = accounts[0];
-         for (let i = 0; i < bids.length; i++) {
-          let product = bids[i] * minUsageTime[i];
-         if (product > highestBid) {
- 
-             highestBid = product;
-             highestBidder = accounts[i+1];
-         }
-         }                                                                                              // Determine the highest bid and its bidder
-         
-         return { "bid": highestBid, "bidder": highestBidder};
-
-       
-   
-    };
-
-    getBalance = async (account) => {
-        return BigInt(await web3.eth.getBalance(account));
-    };
-
-
-
 });
 
 
