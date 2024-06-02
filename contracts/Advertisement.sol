@@ -291,10 +291,10 @@ contract Advertisement {
          address payable PU = advertisementInfo.PU;                                                                   // Get the address of the PU
          string memory eventMsg = "Transfer highest bid to PU";                                                 // Initialize the event message
 
-         if (highestBid > advertisementInfo.depositValue) {                                                           // Check if the highest bid exceeds the deposit value
+        /* if (highestBid > advertisementInfo.depositValue) {                                                           // Check if the highest bid exceeds the deposit value
              highestBid = advertisementInfo.depositValue;                                                             // If it does, set the highest bid to be equal to the deposit value
              eventMsg = "The highest bid was higher than the deposit value. Transferring the deposit to PU";    // Update the event message accordingly
-         }
+         }*/
 
          emit TransferEvent(                                                    // Emit an event indicating the transfer of funds to the PU
              eventMsg,
