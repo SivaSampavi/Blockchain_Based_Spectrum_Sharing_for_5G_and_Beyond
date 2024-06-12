@@ -1,0 +1,60 @@
+const TestAdvertisement = artifacts.require("TestAdvertisement");
+const ChannelManager = artifacts.require("ChannelManager");
+const truffleAssert = require("truffle-assertions");
+const { time } = require("@openzeppelin/test-helpers");
+
+contract("ChannelManager", accounts => {
+    const [PU, bandwidth, minBidValue, depositValue] = [accounts[9], 100, 50, 1000];
+    let testAdvertisement;
+    let channelManager;
+
+    const STATE_READY_FOR_PAYMENT=3;
+
+    before(async () => {
+        
+        
+            testAdvertisement = await TestAdvertisement.new(PU, bandwidth, minBidValue, depositValue, {
+                gas: 6000000 
+            });
+        
+            channelManager = await ChannelManager.new();
+       
+    });
+
+    it("winner can open a channel", async () => {
+           await testAdvertisement.setCurrentState(STATE_READY_FOR_PAYMENT);
+        
+            await testAdvertisement.setWinner(accounts[1], 100);
+
+            await channelManager.openChannel(testAdvertisement.address, {
+                from: accounts[1],
+                
+            });
+        
+    });
+
+
+    it("PU can open a channel", async () => {
+
+        await testAdvertisement.setCurrentState(STATE_READY_FOR_PAYMENT);
+        
+        await channelManager.openChannel(testAdvertisement.address, {
+            from: accounts[9],
+            value: web3.utils.toWei('1', 'ether')
+        });
+    });
+
+    it("Only PU and winner can open a channel", async () => {
+
+        await testAdvertisement.setCurrentState(STATE_READY_FOR_PAYMENT);
+        
+        await truffleAssert.reverts(
+            channelManager.openChannel(testAdvertisement.address, {
+                from: accounts[0],
+                value: web3.utils.toWei('1', 'ether')
+            }),
+            "Only the winner or PU can open a payment channel")
+    });
+    
+
+});
