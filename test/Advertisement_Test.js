@@ -34,7 +34,7 @@ contract("Advertisement", accounts => {
             MIN_BID_VALUE,
             DEPOSIT_VALUE,
             {
-                gas: 4000000 //specify the gas limit for the deployment of the contract.
+                gas: 5000000 //specify the gas limit for the deployment of the contract.
             }
         );
     });
@@ -504,35 +504,35 @@ contract("Advertisement", accounts => {
         expect(Number(balanceAfter - balanceBefore)).to.equal(0);                       // Assert that the balance of the invalid bidder remains unchanged
     });
 
-    it("sent highest bid to PU, no extra deposits", async () => {                       // Test case: Sent highest bid to PU, no extra deposits
-        const highestBid = await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);            // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
-        await time.increase(ONE_DAY + 1);
-        await testContract.closeAdvertisement();
-        await testContract.testFindWinner();
-        await testContract.testTransferBackDeposits();
+    // it("sent highest bid to PU, no extra deposits", async () => {                       // Test case: Sent highest bid to PU, no extra deposits
+    //     const highestBid = await TestBidding(TEST_BIDS,TEST_MIN_USAGE_TIME);            // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME and get the highest bid
+    //     await time.increase(ONE_DAY + 1);
+    //     await testContract.closeAdvertisement();
+    //     await testContract.testFindWinner();
+    //     await testContract.testTransferBackDeposits();
         
-        const balanceBefore = await getBalance(PU_ACCOUNT);                             // Get the balance of the PU before transferring highest bid
-        const tx = await testContract.testTransferHighestBidToPU();                     // Execute the function to transfer highest bid to the PU
-        truffleAssert.eventEmitted(tx, "TransferEvent");                                // Assert that the "TransferEvent" event is emitted
-        const balanceAfter = await getBalance(PU_ACCOUNT);                              // Get the balance of the PU after transferring highest bid
+    //     const balanceBefore = await getBalance(PU_ACCOUNT);                             // Get the balance of the PU before transferring highest bid
+    //     const tx = await testContract.testTransferHighestBidToPU();                     // Execute the function to transfer highest bid to the PU
+    //     truffleAssert.eventEmitted(tx, "TransferEvent");                                // Assert that the "TransferEvent" event is emitted
+    //     const balanceAfter = await getBalance(PU_ACCOUNT);                              // Get the balance of the PU after transferring highest bid
     
-        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid);          // Assert that the difference in balances is equal to the highest bid
-    });
+    //     expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid);          // Assert that the difference in balances is equal to the highest bid
+    // });
     
-    it("sent highest bid to PU, one extra deposit", async () => {                                       // Test case: Sent highest bid to PU, one extra deposit
-        const highestBid = await TestBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                      // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
-        await time.increase(ONE_DAY + 1);
-        await testContract.closeAdvertisement();
-        await testContract.testFindWinner();
-        await testContract.testTransferBackDeposits();
+    // it("sent highest bid to PU, one extra deposit", async () => {                                       // Test case: Sent highest bid to PU, one extra deposit
+    //     const highestBid = await TestBidding(TEST_BIDS, TEST_MIN_USAGE_TIME,true);                      // Mock bidding with TEST_BIDS & TEST_MIN_USAGE_TIME including an invalid first bid
+    //     await time.increase(ONE_DAY + 1);
+    //     await testContract.closeAdvertisement();
+    //     await testContract.testFindWinner();
+    //     await testContract.testTransferBackDeposits();
         
-        const balanceBefore = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                            // Get the balance of the PU before transferring highest bid to PU
-        const tx = await testContract.testTransferHighestBidToPU({ gasPrice: 7});                       // Execute the function to transfer highest bid to PU
-        truffleAssert.eventEmitted(tx, "TransferEvent");
-        const balanceAfter = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                             // Get the balance of the PU after transferring highest bid to PU
+    //     const balanceBefore = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                            // Get the balance of the PU before transferring highest bid to PU
+    //     const tx = await testContract.testTransferHighestBidToPU({ gasPrice: 7});                       // Execute the function to transfer highest bid to PU
+    //     truffleAssert.eventEmitted(tx, "TransferEvent");
+    //     const balanceAfter = BigInt(await web3.eth.getBalance(PU_ACCOUNT));                             // Get the balance of the PU after transferring highest bid to PU
     
-        expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid + DEPOSIT_VALUE);          // Assert that the difference in balances is equal to the highest bid plus one extra deposit
-    });
+    //     expect(Number(balanceAfter - balanceBefore)).to.equal(highestBid.bid + DEPOSIT_VALUE);          // Assert that the difference in balances is equal to the highest bid plus one extra deposit
+    // });
 
     it("winner retrieved token", async() => {                                                   // Test case: Winner retrieved token
         await TestBidding(TEST_BIDS, TEST_MIN_USAGE_TIME);
@@ -567,6 +567,8 @@ contract("Advertisement", accounts => {
             expect(error.message).to.equal("Cannot read properties of undefined (reading 'call')");
         }
     });
+
+
 
     
 });

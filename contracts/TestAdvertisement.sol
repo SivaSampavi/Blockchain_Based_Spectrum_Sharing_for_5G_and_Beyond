@@ -44,7 +44,7 @@ contract TestAdvertisement is Advertisement {
     }
 
     //function to test transferring the highest bid to the PU
-    function testTransferHighestBidToPU() public {
-        transferHighestBidToPU();
-    } 
+    // function testTransferHighestBidToPU() public {
+    //     transferHighestBidToPU();
+    // } 
 }

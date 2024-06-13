@@ -2,11 +2,13 @@
 pragma solidity ^0.8.1;
 
 contract Advertisement {
+
     enum State {
         ReadyForBids,//0th state
         ReadyForBidsReveal,//1st state
         Closed,//2nd state
-        ReadyForDeletion//3rd state
+        ReadyForPayment,
+        ReadyForDeletion//4th state
     }
 
     //The following modifiers are the preconditions that should satisfy before a function execute
@@ -37,7 +39,7 @@ contract Advertisement {
         State currentState;
         address payable PU;//PU account address
         uint bandwidth;//The amount of spectrum that is advertisemented off by the PU
-        uint minBidValue;//The minimimum bidvalue that the PU will accept for this amount of bandwidth(in wei)
+        uint minBidValue;//The minimimum bidvalue that the PU will accept for this amount of bandwidth(in wei per minute)
         uint depositValue;//The minimum deposit value which every bidder must transfer to the contract in order to participate in the advertisement(wei). 
         uint BidsDeadline;//bid closing time(s)
         uint BidsRevealDeadline;//Bid reveal closing time(s)
@@ -58,6 +60,7 @@ contract Advertisement {
     struct Winner {
         address accountAddress;//stores the address of the winner
         uint bid;//Stores the value of the winning bid
+        
     }
 
     //represents a token related to the advertisement
@@ -67,18 +70,23 @@ contract Advertisement {
         uint bandwidth;//the bandwidth represented by the token
         uint validUntil;//the timestamp until which the token is valid
         bool isSpent;//indicating whether the token has been spent
+        
     }
+
+    
+   
 
     address private controller;//ntended to store the address of the contract controller or owner
     AdvertisementInfo public advertisementInfo;//intended to store information about the current state and parameters of the advertisement.
     Winner public winner;//intended to store information about the winner of the advertisement.
-    
-    //This line declares a public mapping named bids, which associates address keys with Bid values. 
+
+
+  //This line declares a public mapping named bids, which associates address keys with Bid values. 
     //This mapping is likely used to keep track of bids made by different addresses in the advertisement.
     mapping(address => Bid) public bids;
 
     //used to manage tokens related to the advertisement, such as those awarded to the winner.
-    mapping(address => Token) private token;
+    mapping(address => Token) private token;  
 
     //This array is likely intended to store the addresses of bidders who have submitted hidden bids in the advertisement
     address[] public BidsAddresses;
@@ -122,6 +130,10 @@ contract Advertisement {
     //This event is emitted when tokens are retrieved from the contract. 
     //It includes information about who retrieved the tokens (retrievedBy) and evet emitted time
     event RetrievedToken(address retrievedBy, uint currentTime);
+
+    event ExpiredToken(address PU, uint currentTime);
+
+
 
     // msg.sender is the controller controller and not the PU address
     // PU address must therefore be specified as a parameter
@@ -235,15 +247,17 @@ contract Advertisement {
     function findWinner() internal inState(State.Closed) {          // Function to find the winner of the advertisement
          address winnerAddress;                                     // Declaring variables to store the winner's address and the highest bid
          uint highestBid;
+         uint deposit;
 
          for(uint i = 0; i < BidsAddresses.length; i++) {           // Loop through all the bids
              address SU = BidsAddresses[i];                         // Get the address of the bidder
              if (!bids[SU].isBidRevealValid) continue;                // Check if the bid is still open for this address; if not, skip to the next iteration
              uint bid = bids[SU].BidReveal*bids[SU].minUsageTime;   // Calculate the bid amount by multiplying the revealed bid with the minimum usage time
-
+             uint depositVal = bids[SU].deposit;
              if (bid > highestBid) {                                // Check if the current bid is higher than the previously recorded highest bid
                  winnerAddress = SU;                                // If yes, update the winner's address and the highest bid amount
-                 highestBid = bid;        
+                 highestBid = bid;
+                 deposit = depositVal;        
              }
          }
 
@@ -258,7 +272,10 @@ contract Advertisement {
              advertisementContract: address(this),
              bandwidth: advertisementInfo.bandwidth,
              validUntil: block.timestamp + 12 weeks,
-             isSpent: false
+             isSpent: false        
+
+            
+
          });
      }
 
@@ -272,8 +289,8 @@ contract Advertisement {
              if (!bid.isBidRevealValid) continue;                                                           // Do not send back deposit to invalid SUs
 
              bool isWinner = SUAddress == winner.accountAddress;                                            // Check if the bidder is the winner and if their bid reveal is greater than or equal to their deposit
-             if (isWinner && bid.BidReveal >= bid.deposit) continue;
-             uint deposit = isWinner ?  bid.deposit - bid.BidReveal*bid.minUsageTime : bid.deposit;         // Calculate the deposit to be transferred back
+             if (isWinner) continue;
+             uint deposit = bid.deposit;         // Calculate the deposit to be transferred back
 
              emit TransferEvent(                                                                            // Emit an event indicating the transfer of deposit back to the bidder
                  "Transfer back deposit to SU", 
@@ -286,26 +303,17 @@ contract Advertisement {
          }
      }
 
-     function transferHighestBidToPU() internal inState(State.Closed) {                                         // Function to transfer the highest bid amount to the PU
-         uint highestBid = winner.bid;                                                                          // Get the highest bid amount from the winner
-         address payable PU = advertisementInfo.PU;                                                                   // Get the address of the PU
-         string memory eventMsg = "Transfer highest bid to PU";                                                 // Initialize the event message
 
-        /* if (highestBid > advertisementInfo.depositValue) {                                                           // Check if the highest bid exceeds the deposit value
-             highestBid = advertisementInfo.depositValue;                                                             // If it does, set the highest bid to be equal to the deposit value
-             eventMsg = "The highest bid was higher than the deposit value. Transferring the deposit to PU";    // Update the event message accordingly
-         }*/
+     function handleInvalidBids() internal inState(State.Closed) {
 
-         emit TransferEvent(                                                    // Emit an event indicating the transfer of funds to the PU
-             eventMsg,
-             PU,
-             highestBid,
-             block.timestamp
-         );
+        address payable PU = advertisementInfo.PU;                                                                      // Get the highest bid amount from the winner
+         
+        uint depositVal = bids[winner.accountAddress].deposit;                                                                // Get the address of the PU
+       
+        require(winner.accountAddress != address(0), "Must find a winner before sending back deposits");
+        
 
-         PU.transfer(highestBid);                                               // Transfer the highest bid amount to the PU
-
-         uint contractBalance = address(this).balance;                          // Transfer deposits of invalid SUs to PU
+        uint contractBalance = address(this).balance - depositVal;                          // Transfer deposits of invalid SUs to PU
          if (contractBalance > 0) {
              emit TransferEvent(                                                // If there are remaining funds in the contract, transfer them to the PU
                  "Transfer contract balance to PU", 
@@ -317,16 +325,27 @@ contract Advertisement {
              PU.transfer(contractBalance);                                      // Transfer the remaining funds to the PU
          }
 
-         emit AdvertisementEnded(winner, address(this).balance, block.timestamp);     // Emit an event indicating the end of the advertisement
-     }
+    }
 
      function retrieveToken() public inState(State.Closed) isAfterDeadline(advertisementInfo.BidsRevealDeadline) returns(Token memory) {      // Function to retrieve the token after the advertisement has closed and the deadline for bids reveal has passed
          require(msg.sender == winner.accountAddress, "You are not the winner of the advertisement!");                                        // Ensure that only the winner of the advertisement can retrieve the token
         
-         advertisementInfo.currentState = State.ReadyForDeletion;                                                                             // Update the state of the advertisement to indicate readiness for deletion
+         advertisementInfo.currentState = State.ReadyForPayment;                                                            
          emit RetrievedToken(msg.sender, block.timestamp);                                                                              // Emit an event indicating the retrieval of the token by the winner
 
          return token[msg.sender];                                                                                                      // Return the token associated with the winner's address
+     }
+
+     function TokenExpired() public inState(State.ReadyForPayment)
+     {
+
+        require(msg.sender == advertisementInfo.PU, "You are not the PU of the advertisement!"); 
+
+        advertisementInfo.currentState = State.ReadyForDeletion;  
+        emit ExpiredToken(msg.sender, block.timestamp);    
+
+
+
      }
 
      function getAdvertisementInfo() public view returns(State, address, uint, uint, uint, uint, uint) {          // Function to retrieve information about the advertisement
@@ -353,4 +372,14 @@ contract Advertisement {
          require(msg.sender == controller, "You are not allowed to delete this advertisement!");  // Ensure that only the controller can delete the advertisement
          selfdestruct(advertisementInfo.PU);
      }
+
+     
+    function getWinner() external view returns (address, uint) {
+        return (winner.accountAddress, winner.bid);
+    }
+
+    function getBidInfo(address user) external view returns (uint, uint,uint) {
+        return (bids[user].minUsageTime, bids[user].BidReveal,bids[user].deposit);
+    }
+
 }
