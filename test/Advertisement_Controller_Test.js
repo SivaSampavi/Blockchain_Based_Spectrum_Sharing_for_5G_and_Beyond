@@ -167,6 +167,7 @@ contract("AdvertisementController", accounts => {
         await time.increase(ONE_DAY + 1);
         await advertisement.closeAdvertisement();
         await advertisement.retrieveToken({ from: accounts[2] });
+        await advertisement.TokenExpired({from:PUAddress});
 
         return newAdvertisementAddress;
     };
