@@ -14,7 +14,7 @@ contract("Advertisement", accounts => {
     const STATE_READY_FOR_BIDS = 0;
     const STATE_READY_FOR_BIDS_REVEAL = 1;
     const STATE_CLOSED= 2;
-    const STATE_READY_FOR_DELETION = 3;
+    const STATE_READY_FOR_DELETION = 4;
 
     const ONE_DAY = 86400;
     const BANDWIDTH = 200;
